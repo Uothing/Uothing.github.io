@@ -1,0 +1,306 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <id>https://uothing.github.io</id>
+    <title>Gridea</title>
+    <updated>2023-07-07T08:39:37.099Z</updated>
+    <generator>https://github.com/jpmonette/feed</generator>
+    <link rel="alternate" href="https://uothing.github.io"/>
+    <link rel="self" href="https://uothing.github.io/atom.xml"/>
+    <subtitle>温故而知新</subtitle>
+    <logo>https://uothing.github.io/images/avatar.png</logo>
+    <icon>https://uothing.github.io/favicon.ico</icon>
+    <rights>All rights reserved 2023, Gridea</rights>
+    <entry>
+        <title type="html"><![CDATA[springboot数据库密码加密]]></title>
+        <id>https://uothing.github.io/post/spring/</id>
+        <link href="https://uothing.github.io/post/spring/">
+        </link>
+        <updated>2023-06-25T02:27:33.000Z</updated>
+        <content type="html"><![CDATA[<p>使用jasypt来简单方便的实现加密</p>
+<h2 id="1引入依赖">1.引入依赖</h2>
+<pre><code>&lt;!-- 数据库加密 --&gt;
+&lt;dependency&gt;
+        &lt;groupId&gt;com.github.ulisesbocchio&lt;/groupId&gt;
+        &lt;artifactId&gt;jasypt-spring-boot-starter&lt;/artifactId&gt;
+        &lt;version&gt;3.0.2&lt;/version&gt;
+&lt;/dependency&gt;
+&lt;!-- 如果要使用SM4加密，就需要引入下面的jar --&gt;
+&lt;dependency&gt;
+       &lt;groupId&gt;org.bouncycastle&lt;/groupId&gt;
+       &lt;artifactId&gt;bcpkix-jdk15on&lt;/artifactId&gt;
+       &lt;version&gt;1.60&lt;/version&gt;
+&lt;/dependency&gt;
+</code></pre>
+<h2 id="2编写自定义的加解密工具">2.编写自定义的加解密工具</h2>
+<pre><code class="language-java">import org.jasypt.encryption.StringEncryptor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import cn.hutool.core.util.CharsetUtil;
+import cn.hutool.crypto.SmUtil;
+import cn.hutool.crypto.symmetric.SymmetricCrypto;
+
+/**
+ * jasypt 自定义数据库密码加密器 - SM4加密算法
+ * 
+ * @author jiaqiankun
+ */
+@Component(&quot;customStringEncryptor&quot;)
+public class CustomStringEncryptor implements StringEncryptor {
+
+    @Value(&quot;${jasypt.encryptor.salt}&quot;)
+    private String salt;
+
+    @Override
+    public String encrypt(String message) {
+       return Sm4Util.encrypt(salt, message);
+    }
+
+    @Override
+    public String decrypt(String s) {
+        String decrypt = Sm4Util.decrypt(salt, s);
+        return decrypt;
+    }
+
+}
+</code></pre>
+<h2 id="3在配置文件中指定自定义的加密器并定义一个salt">3.在配置文件中指定自定义的加密器并定义一个salt</h2>
+<pre><code>#密码
+spring:
+    datasource:
+        url: jdbc:mysql://localhost:3306/bank?characterEncoding=utf8&amp;useSSL=true
+        username: root
+        #ENC是一个标识，可以在下方通过jasypt.encryptor.property.prefix
+        #和jasypt.encryptor.property.suffix进行指定，默认是enc(密文)
+        password: ENC(a44625760f8fc68e8d3c6e3f18f898cd)   
+#属性文件加密
+jasypt:
+   encryptor:
+        #salt必须为16位字符串，如果使用默认算法，此处的salt应该改为password，自定义随意命名，
+        #在customStringEncryptor中注入正确即可
+        salt: 16位 
+        bean: customStringEncryptor
+</code></pre>
+<h2 id="4编写sm4utiljava">4.编写Sm4Util.java</h2>
+<pre><code class="language-java">import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.pqc.math.linearalgebra.ByteUtils;
+ 
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import java.security.AlgorithmParameters;
+import java.security.Key;
+import java.security.SecureRandom;
+import java.security.Security;
+import java.util.Arrays;
+ 
+/**
+ * Sm4 国密算法
+ *
+ */
+public final class Sm4Util {
+ 
+    static {
+        Security.addProvider(new BouncyCastleProvider());
+    }
+ 
+    private static final String ENCODING = &quot;UTF-8&quot;;
+ 
+    public static final String ALGORITHM_NAME = &quot;SM4&quot;;
+    // 加密算法/分组加密模式/分组填充方式
+    // PKCS5Padding-以8个字节为一组进行分组加密
+    // 定义分组加密模式使用：PKCS5Padding
+ 
+    public static final String ALGORITHM_NAME_CBC_PADDING = &quot;SM4/CBC/PKCS5Padding&quot;;
+    // 128-32位16进制；256-64位16进制
+    public static final int DEFAULT_KEY_SIZE = 128;
+ 
+    /**
+     * 自动生成密钥
+     *
+     * @return
+     * @explain
+     */
+    public static byte[] generateKey() throws Exception {
+        return generateKey(DEFAULT_KEY_SIZE);
+    }
+ 
+ 
+    /**
+     * 自动生成密钥
+     * @return
+     * @throws Exception
+     */
+    public static String generateKeyString() throws Exception {
+        return ByteUtils.toHexString(generateKey());
+    }
+ 
+    /**
+     * @param keySize
+     * @return
+     * @throws Exception
+     * @explain
+     */
+    public static byte[] generateKey(int keySize) throws Exception {
+        KeyGenerator kg = KeyGenerator.getInstance(ALGORITHM_NAME, BouncyCastleProvider.PROVIDER_NAME);
+        kg.init(keySize, new SecureRandom());
+        return kg.generateKey().getEncoded();
+    }
+ 
+    /**
+     * sm4加密
+     *
+     * @param hexKey   16进制密钥（忽略大小写）
+     * @param paramStr 待加密字符串
+     * @return 返回16进制的加密字符串
+     * @throws Exception
+     * @explain 加密模式：CBC
+     */
+    public static String encrypt(String hexKey, String paramStr) throws Exception {
+        String result = &quot;&quot;;
+        // 16进制字符串--&gt;byte[]
+        byte[] keyData = ByteUtils.fromHexString(hexKey);
+        // String--&gt;byte[]
+        byte[] srcData = paramStr.getBytes(ENCODING);
+        // 加密后的数组
+        byte[] cipherArray = encryptCbcPadding(keyData, srcData);
+ 
+        // byte[]--&gt;hexString
+        result = ByteUtils.toHexString(cipherArray);
+        return result;
+    }
+ 
+    /**
+     * 加密模式之CBC
+     *
+     * @param key
+     * @param data
+     * @return
+     * @throws Exception
+     * @explain
+     */
+    public static byte[] encryptCbcPadding(byte[] key, byte[] data) throws Exception {
+        Cipher cipher = generateCbcCipher(ALGORITHM_NAME_CBC_PADDING, Cipher.ENCRYPT_MODE, key);
+        return cipher.doFinal(data);
+    }
+ 
+    /**
+     * 加密模式之CBC
+     * @param algorithmName
+     * @param mode
+     * @param key
+     * @return
+     * @throws Exception
+     */
+    private static Cipher generateCbcCipher(String algorithmName, int mode, byte[] key) throws Exception {
+        Cipher cipher = Cipher.getInstance(algorithmName, BouncyCastleProvider.PROVIDER_NAME);
+        Key sm4Key = new SecretKeySpec(key, ALGORITHM_NAME);
+        cipher.init(mode, sm4Key, generateIV());
+        return cipher;
+    }
+ 
+    /**
+     * 生成iv
+     * @return
+     * @throws Exception
+     */
+    public static AlgorithmParameters generateIV() throws Exception {
+        //iv 为一个 16 字节的数组，这里采用和 iOS 端一样的构造方法，数据全为0
+        byte[] iv = new byte[16];
+        Arrays.fill(iv, (byte) 0x00);
+        AlgorithmParameters params = AlgorithmParameters.getInstance(ALGORITHM_NAME);
+        params.init(new IvParameterSpec(iv));
+        return params;
+    }
+ 
+    /**
+     * sm4解密
+     *
+     * @param hexKey 16进制密钥
+     * @param text   16进制的加密字符串（忽略大小写）
+     * @return 解密后的字符串
+     * @throws Exception
+     * @explain 解密模式：采用CBC
+     */
+    public static String decrypt(String hexKey, String text) throws Exception {
+        // 用于接收解密后的字符串
+        String result = &quot;&quot;;
+        // hexString--&gt;byte[]
+        byte[] keyData = ByteUtils.fromHexString(hexKey);
+        // hexString--&gt;byte[]
+        byte[] resultData = ByteUtils.fromHexString(text);
+        // 解密
+        byte[] srcData = decryptCbcPadding(keyData, resultData);
+        // byte[]--&gt;String
+        result = new String(srcData, ENCODING);
+        return result;
+    }
+ 
+    /**
+     * 解密
+     *
+     * @param key
+     * @param cipherText
+     * @return
+     * @throws Exception
+     * @explain
+     */
+    public static byte[] decryptCbcPadding(byte[] key, byte[] cipherText) throws Exception {
+        Cipher cipher = generateCbcCipher(ALGORITHM_NAME_CBC_PADDING, Cipher.DECRYPT_MODE, key);
+        return cipher.doFinal(cipherText);
+    }
+ 
+    public static void main(String[] args) throws Exception {
+ 
+        String str = &quot;Hello, world&quot; ;
+        System.out.println(&quot;==========生成密钥==========&quot;);
+        String generateKey = generateKeyString();
+        System.out.println(generateKey);
+        System.out.println(&quot;==========加密==========&quot;);
+        String encrypt = encrypt(generateKey, str);
+        System.out.println(encrypt);
+        System.out.println(&quot;==========解密==========&quot;);
+        String decrypt = decrypt(generateKey, encrypt);
+        System.out.println(decrypt);
+    }
+}
+</code></pre>
+<h2 id="5加注解">5.加注解</h2>
+<p>在启动类Application.java加上注解：@EnableEncryptableProperties<br>
+😀</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Hello Gridea]]></title>
+        <id>https://uothing.github.io/post/hello-gridea/</id>
+        <link href="https://uothing.github.io/post/hello-gridea/">
+        </link>
+        <updated>2018-12-11T16:00:00.000Z</updated>
+        <summary type="html"><![CDATA[<p>👏  欢迎使用 <strong>Gridea</strong> ！<br>
+✍️  <strong>Gridea</strong> 一个静态博客写作客户端。你可以用它来记录你的生活、心情、知识、笔记、创意... ...</p>
+]]></summary>
+        <content type="html"><![CDATA[<p>👏  欢迎使用 <strong>Gridea</strong> ！<br>
+✍️  <strong>Gridea</strong> 一个静态博客写作客户端。你可以用它来记录你的生活、心情、知识、笔记、创意... ...</p>
+<!-- more -->
+<p><a href="https://github.com/getgridea/gridea">Github</a><br>
+<a href="https://gridea.dev/">Gridea 主页</a><br>
+<a href="https://fehey.com/">示例网站</a></p>
+<h2 id="特性">特性👇</h2>
+<p>📝  你可以使用最酷的 <strong>Markdown</strong> 语法，进行快速创作</p>
+<p>🌉  你可以给文章配上精美的封面图和在文章任意位置插入图片</p>
+<p>🏷️  你可以对文章进行标签分组</p>
+<p>📋  你可以自定义菜单，甚至可以创建外部链接菜单</p>
+<p>💻  你可以在 <strong>Windows</strong>，<strong>MacOS</strong> 或 <strong>Linux</strong> 设备上使用此客户端</p>
+<p>🌎  你可以使用 <strong>𝖦𝗂𝗍𝗁𝗎𝖻 𝖯𝖺𝗀𝖾𝗌</strong> 或 <strong>Coding Pages</strong> 向世界展示，未来将支持更多平台</p>
+<p>💬  你可以进行简单的配置，接入 <a href="https://github.com/gitalk/gitalk">Gitalk</a> 或 <a href="https://github.com/SukkaW/DisqusJS">DisqusJS</a> 评论系统</p>
+<p>🇬🇧  你可以使用<strong>中文简体</strong>或<strong>英语</strong></p>
+<p>🌁  你可以任意使用应用内默认主题或任意第三方主题，强大的主题自定义能力</p>
+<p>🖥  你可以自定义源文件夹，利用 OneDrive、百度网盘、iCloud、Dropbox 等进行多设备同步</p>
+<p>🌱 当然 <strong>Gridea</strong> 还很年轻，有很多不足，但请相信，它会不停向前 🏃</p>
+<p>未来，它一定会成为你离不开的伙伴</p>
+<p>尽情发挥你的才华吧！</p>
+<p>😘 Enjoy~</p>
+]]></content>
+    </entry>
+</feed>

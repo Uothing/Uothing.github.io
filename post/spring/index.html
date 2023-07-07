@@ -1,0 +1,442 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>springboot数据库密码加密 | Gridea</title>
+<link rel="shortcut icon" href="https://uothing.github.io/favicon.ico?v=1688719174741">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://uothing.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="springboot数据库密码加密 | Gridea - Atom Feed" href="https://uothing.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="使用jasypt来简单方便的实现加密
+1.引入依赖
+&lt;!-- 数据库加密 --&gt;
+&lt;dependency&gt;
+        &lt;groupId&gt;com.github.ulisesbocchio&lt;/gr..." />
+    <meta name="keywords" content="spring,Java" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://uothing.github.io">
+  <img class="avatar" src="https://uothing.github.io/images/avatar.png?v=1688719174741" alt="">
+  </a>
+  <h1 class="site-title">
+    Gridea
+  </h1>
+  <p class="site-description">
+    温故而知新
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              springboot数据库密码加密
+            </h2>
+            <div class="post-info">
+              <span>
+                2023-06-25
+              </span>
+              <span>
+                6 min read
+              </span>
+              
+                <a href="https://uothing.github.io/tag/dqg5MfeIX/" class="post-tag">
+                  # spring
+                </a>
+              
+                <a href="https://uothing.github.io/tag/mfnW07CR9L/" class="post-tag">
+                  # Java
+                </a>
+              
+            </div>
+            
+              <img class="post-feature-image" src="https://uothing.github.io/post-images/spring.jpg" alt="">
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <p>使用jasypt来简单方便的实现加密</p>
+<h2 id="1引入依赖">1.引入依赖</h2>
+<pre><code>&lt;!-- 数据库加密 --&gt;
+&lt;dependency&gt;
+        &lt;groupId&gt;com.github.ulisesbocchio&lt;/groupId&gt;
+        &lt;artifactId&gt;jasypt-spring-boot-starter&lt;/artifactId&gt;
+        &lt;version&gt;3.0.2&lt;/version&gt;
+&lt;/dependency&gt;
+&lt;!-- 如果要使用SM4加密，就需要引入下面的jar --&gt;
+&lt;dependency&gt;
+       &lt;groupId&gt;org.bouncycastle&lt;/groupId&gt;
+       &lt;artifactId&gt;bcpkix-jdk15on&lt;/artifactId&gt;
+       &lt;version&gt;1.60&lt;/version&gt;
+&lt;/dependency&gt;
+</code></pre>
+<h2 id="2编写自定义的加解密工具">2.编写自定义的加解密工具</h2>
+<pre><code class="language-java">import org.jasypt.encryption.StringEncryptor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import cn.hutool.core.util.CharsetUtil;
+import cn.hutool.crypto.SmUtil;
+import cn.hutool.crypto.symmetric.SymmetricCrypto;
+
+/**
+ * jasypt 自定义数据库密码加密器 - SM4加密算法
+ * 
+ * @author jiaqiankun
+ */
+@Component(&quot;customStringEncryptor&quot;)
+public class CustomStringEncryptor implements StringEncryptor {
+
+    @Value(&quot;${jasypt.encryptor.salt}&quot;)
+    private String salt;
+
+    @Override
+    public String encrypt(String message) {
+       return Sm4Util.encrypt(salt, message);
+    }
+
+    @Override
+    public String decrypt(String s) {
+        String decrypt = Sm4Util.decrypt(salt, s);
+        return decrypt;
+    }
+
+}
+</code></pre>
+<h2 id="3在配置文件中指定自定义的加密器并定义一个salt">3.在配置文件中指定自定义的加密器并定义一个salt</h2>
+<pre><code>#密码
+spring:
+    datasource:
+        url: jdbc:mysql://localhost:3306/bank?characterEncoding=utf8&amp;useSSL=true
+        username: root
+        #ENC是一个标识，可以在下方通过jasypt.encryptor.property.prefix
+        #和jasypt.encryptor.property.suffix进行指定，默认是enc(密文)
+        password: ENC(a44625760f8fc68e8d3c6e3f18f898cd)   
+#属性文件加密
+jasypt:
+   encryptor:
+        #salt必须为16位字符串，如果使用默认算法，此处的salt应该改为password，自定义随意命名，
+        #在customStringEncryptor中注入正确即可
+        salt: 16位 
+        bean: customStringEncryptor
+</code></pre>
+<h2 id="4编写sm4utiljava">4.编写Sm4Util.java</h2>
+<pre><code class="language-java">import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.pqc.math.linearalgebra.ByteUtils;
+ 
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import java.security.AlgorithmParameters;
+import java.security.Key;
+import java.security.SecureRandom;
+import java.security.Security;
+import java.util.Arrays;
+ 
+/**
+ * Sm4 国密算法
+ *
+ */
+public final class Sm4Util {
+ 
+    static {
+        Security.addProvider(new BouncyCastleProvider());
+    }
+ 
+    private static final String ENCODING = &quot;UTF-8&quot;;
+ 
+    public static final String ALGORITHM_NAME = &quot;SM4&quot;;
+    // 加密算法/分组加密模式/分组填充方式
+    // PKCS5Padding-以8个字节为一组进行分组加密
+    // 定义分组加密模式使用：PKCS5Padding
+ 
+    public static final String ALGORITHM_NAME_CBC_PADDING = &quot;SM4/CBC/PKCS5Padding&quot;;
+    // 128-32位16进制；256-64位16进制
+    public static final int DEFAULT_KEY_SIZE = 128;
+ 
+    /**
+     * 自动生成密钥
+     *
+     * @return
+     * @explain
+     */
+    public static byte[] generateKey() throws Exception {
+        return generateKey(DEFAULT_KEY_SIZE);
+    }
+ 
+ 
+    /**
+     * 自动生成密钥
+     * @return
+     * @throws Exception
+     */
+    public static String generateKeyString() throws Exception {
+        return ByteUtils.toHexString(generateKey());
+    }
+ 
+    /**
+     * @param keySize
+     * @return
+     * @throws Exception
+     * @explain
+     */
+    public static byte[] generateKey(int keySize) throws Exception {
+        KeyGenerator kg = KeyGenerator.getInstance(ALGORITHM_NAME, BouncyCastleProvider.PROVIDER_NAME);
+        kg.init(keySize, new SecureRandom());
+        return kg.generateKey().getEncoded();
+    }
+ 
+    /**
+     * sm4加密
+     *
+     * @param hexKey   16进制密钥（忽略大小写）
+     * @param paramStr 待加密字符串
+     * @return 返回16进制的加密字符串
+     * @throws Exception
+     * @explain 加密模式：CBC
+     */
+    public static String encrypt(String hexKey, String paramStr) throws Exception {
+        String result = &quot;&quot;;
+        // 16进制字符串--&gt;byte[]
+        byte[] keyData = ByteUtils.fromHexString(hexKey);
+        // String--&gt;byte[]
+        byte[] srcData = paramStr.getBytes(ENCODING);
+        // 加密后的数组
+        byte[] cipherArray = encryptCbcPadding(keyData, srcData);
+ 
+        // byte[]--&gt;hexString
+        result = ByteUtils.toHexString(cipherArray);
+        return result;
+    }
+ 
+    /**
+     * 加密模式之CBC
+     *
+     * @param key
+     * @param data
+     * @return
+     * @throws Exception
+     * @explain
+     */
+    public static byte[] encryptCbcPadding(byte[] key, byte[] data) throws Exception {
+        Cipher cipher = generateCbcCipher(ALGORITHM_NAME_CBC_PADDING, Cipher.ENCRYPT_MODE, key);
+        return cipher.doFinal(data);
+    }
+ 
+    /**
+     * 加密模式之CBC
+     * @param algorithmName
+     * @param mode
+     * @param key
+     * @return
+     * @throws Exception
+     */
+    private static Cipher generateCbcCipher(String algorithmName, int mode, byte[] key) throws Exception {
+        Cipher cipher = Cipher.getInstance(algorithmName, BouncyCastleProvider.PROVIDER_NAME);
+        Key sm4Key = new SecretKeySpec(key, ALGORITHM_NAME);
+        cipher.init(mode, sm4Key, generateIV());
+        return cipher;
+    }
+ 
+    /**
+     * 生成iv
+     * @return
+     * @throws Exception
+     */
+    public static AlgorithmParameters generateIV() throws Exception {
+        //iv 为一个 16 字节的数组，这里采用和 iOS 端一样的构造方法，数据全为0
+        byte[] iv = new byte[16];
+        Arrays.fill(iv, (byte) 0x00);
+        AlgorithmParameters params = AlgorithmParameters.getInstance(ALGORITHM_NAME);
+        params.init(new IvParameterSpec(iv));
+        return params;
+    }
+ 
+    /**
+     * sm4解密
+     *
+     * @param hexKey 16进制密钥
+     * @param text   16进制的加密字符串（忽略大小写）
+     * @return 解密后的字符串
+     * @throws Exception
+     * @explain 解密模式：采用CBC
+     */
+    public static String decrypt(String hexKey, String text) throws Exception {
+        // 用于接收解密后的字符串
+        String result = &quot;&quot;;
+        // hexString--&gt;byte[]
+        byte[] keyData = ByteUtils.fromHexString(hexKey);
+        // hexString--&gt;byte[]
+        byte[] resultData = ByteUtils.fromHexString(text);
+        // 解密
+        byte[] srcData = decryptCbcPadding(keyData, resultData);
+        // byte[]--&gt;String
+        result = new String(srcData, ENCODING);
+        return result;
+    }
+ 
+    /**
+     * 解密
+     *
+     * @param key
+     * @param cipherText
+     * @return
+     * @throws Exception
+     * @explain
+     */
+    public static byte[] decryptCbcPadding(byte[] key, byte[] cipherText) throws Exception {
+        Cipher cipher = generateCbcCipher(ALGORITHM_NAME_CBC_PADDING, Cipher.DECRYPT_MODE, key);
+        return cipher.doFinal(cipherText);
+    }
+ 
+    public static void main(String[] args) throws Exception {
+ 
+        String str = &quot;Hello, world&quot; ;
+        System.out.println(&quot;==========生成密钥==========&quot;);
+        String generateKey = generateKeyString();
+        System.out.println(generateKey);
+        System.out.println(&quot;==========加密==========&quot;);
+        String encrypt = encrypt(generateKey, str);
+        System.out.println(encrypt);
+        System.out.println(&quot;==========解密==========&quot;);
+        String decrypt = decrypt(generateKey, encrypt);
+        System.out.println(decrypt);
+    }
+}
+</code></pre>
+<h2 id="5加注解">5.加注解</h2>
+<p>在启动类Application.java加上注解：@EnableEncryptableProperties<br>
+😀</p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#1%E5%BC%95%E5%85%A5%E4%BE%9D%E8%B5%96">1.引入依赖</a></li>
+<li><a href="#2%E7%BC%96%E5%86%99%E8%87%AA%E5%AE%9A%E4%B9%89%E7%9A%84%E5%8A%A0%E8%A7%A3%E5%AF%86%E5%B7%A5%E5%85%B7">2.编写自定义的加解密工具</a></li>
+<li><a href="#3%E5%9C%A8%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6%E4%B8%AD%E6%8C%87%E5%AE%9A%E8%87%AA%E5%AE%9A%E4%B9%89%E7%9A%84%E5%8A%A0%E5%AF%86%E5%99%A8%E5%B9%B6%E5%AE%9A%E4%B9%89%E4%B8%80%E4%B8%AAsalt">3.在配置文件中指定自定义的加密器并定义一个salt</a></li>
+<li><a href="#4%E7%BC%96%E5%86%99sm4utiljava">4.编写Sm4Util.java</a></li>
+<li><a href="#5%E5%8A%A0%E6%B3%A8%E8%A7%A3">5.加注解</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://uothing.github.io/post/hello-gridea/">
+              <h3 class="post-title">
+                Hello Gridea
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://uothing.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>
